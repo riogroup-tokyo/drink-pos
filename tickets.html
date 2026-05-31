@@ -1,0 +1,212 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
+<meta name="theme-color" content="#0f172a">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<title>当日券</title>
+<style>
+  :root{
+    --a:#0ea5e9;  --a-minus:#bae6fd;  --a-ink:#0369a1;
+    --s:#8b5cf6;  --s-minus:#ddd6fe;  --s-ink:#6d28d9;
+    --ss:#f59e0b; --ss-minus:#fde68a; --ss-ink:#b45309;
+    --ink:#0f172a; --muted:#64748b; --bg:#eef2f7;
+  }
+  *{box-sizing:border-box;margin:0;padding:0;-webkit-tap-highlight-color:transparent;}
+  html,body{height:100%;}
+  body{
+    font-family:-apple-system,BlinkMacSystemFont,"Hiragino Kaku Gothic ProN","Hiragino Sans",Meiryo,sans-serif;
+    background:var(--bg); color:var(--ink);
+    display:flex; flex-direction:column; min-height:100dvh;
+    -webkit-user-select:none; user-select:none;
+  }
+  header{
+    position:relative;
+    padding:calc(16px + env(safe-area-inset-top)) 20px 14px;
+    text-align:center; font-size:20px; font-weight:800; letter-spacing:.05em;
+  }
+  .nav-btn, .qr-btn{
+    position:absolute; top:calc(12px + env(safe-area-inset-top));
+    border:1.5px solid rgba(15,23,42,.18); background:#fff; color:var(--ink);
+    font-size:13px; font-weight:800; letter-spacing:.04em;
+    padding:8px 12px; border-radius:12px; cursor:pointer; touch-action:manipulation;
+    text-decoration:none; display:inline-block;
+  }
+  .nav-btn{left:14px;}
+  .qr-btn{right:14px;}
+  .nav-btn:active, .qr-btn:active{transform:scale(.93);}
+  main{ flex:1; padding:6px 16px 16px; display:flex; flex-direction:column; gap:14px; }
+  .card{
+    background:#fff; border-radius:24px; padding:18px 20px 16px;
+    box-shadow:0 8px 24px rgba(15,23,42,.07); border:1px solid rgba(15,23,42,.04);
+  }
+  .row1{display:flex; justify-content:space-between; align-items:baseline; margin-bottom:14px;}
+  .name{font-size:24px; font-weight:900; letter-spacing:.02em;}
+  .price{font-size:15px; color:var(--muted); font-weight:700;}
+  .controls{display:flex; align-items:center; justify-content:space-between;}
+  .btn{
+    width:76px; height:76px; border:none; border-radius:50%;
+    font-size:40px; font-weight:600; color:#fff; line-height:1;
+    display:flex; align-items:center; justify-content:center;
+    cursor:pointer; touch-action:manipulation;
+    transition:transform .07s ease, filter .07s ease;
+  }
+  .btn:active{transform:scale(.88); filter:brightness(.93);}
+  .btn:disabled{opacity:.4; cursor:default;}
+  .btn:disabled:active{transform:none; filter:none;}
+  .count{font-size:50px; font-weight:800; min-width:60px; text-align:center; font-variant-numeric:tabular-nums;}
+  .subtotal{margin-top:12px; text-align:right; font-size:15px; color:var(--muted); font-weight:700;}
+  .a  .btn.plus{background:var(--a);}   .a  .btn.minus{background:var(--a-minus);  color:var(--a-ink);}
+  .s  .btn.plus{background:var(--s);}   .s  .btn.minus{background:var(--s-minus);  color:var(--s-ink);}
+  .ss .btn.plus{background:var(--ss);}  .ss .btn.minus{background:var(--ss-minus); color:var(--ss-ink);}
+  .tag{font-size:11px; font-weight:800; padding:3px 9px; border-radius:999px; margin-left:8px; vertical-align:middle;}
+  .a .tag{background:#e0f2fe; color:var(--a-ink);}
+  .s .tag{background:#ede9fe; color:var(--s-ink);}
+  .ss .tag{background:#fef3c7; color:var(--ss-ink);}
+  .total{
+    position:sticky; bottom:0; background:var(--ink); color:#fff;
+    padding:16px 20px calc(16px + env(safe-area-inset-bottom));
+    box-shadow:0 -8px 24px rgba(15,23,42,.18);
+    display:flex; align-items:center; gap:14px;
+  }
+  .reset{
+    flex:0 0 auto; border:1.5px solid rgba(255,255,255,.35); background:transparent;
+    color:#fff; font-size:15px; font-weight:700; padding:12px 16px; border-radius:14px;
+    cursor:pointer; touch-action:manipulation;
+  }
+  .reset:active{background:rgba(255,255,255,.12);}
+  .total-r{margin-left:auto; text-align:right; line-height:1.1; min-width:0;}
+  .total-label{font-size:13px; color:#94a3b8; font-weight:700;}
+  .total-amount{font-size:34px; font-weight:800; font-variant-numeric:tabular-nums; white-space:nowrap;}
+  .total-amount .yen{font-size:22px; margin-right:2px;}
+
+  /* QRモーダル */
+  .qr-modal{
+    position:fixed; inset:0; background:rgba(15,23,42,.6); z-index:50;
+    display:flex; align-items:center; justify-content:center; padding:24px;
+    -webkit-backdrop-filter:blur(3px); backdrop-filter:blur(3px);
+  }
+  .qr-modal[hidden]{display:none;}
+  .qr-card{
+    background:#fff; border-radius:24px; padding:24px; text-align:center;
+    max-width:320px; width:100%; box-shadow:0 20px 50px rgba(0,0,0,.3);
+  }
+  .qr-card h2{font-size:17px; margin-bottom:4px;}
+  .qr-card p{font-size:13px; color:var(--muted); margin-bottom:16px;}
+  .qr-card img{width:240px; height:240px; image-rendering:pixelated; border-radius:8px;}
+  .qr-url{font-size:12px; color:#475569; word-break:break-all; margin:14px 0 2px; font-weight:600;}
+  .qr-close{
+    margin-top:14px; width:100%; border:none; background:var(--ink); color:#fff;
+    font-size:16px; font-weight:700; padding:14px; border-radius:14px; cursor:pointer;
+  }
+</style>
+</head>
+<body>
+  <header>
+    <a class="nav-btn" href="index.html" aria-label="ドリンク会計へ">🍻 ドリンク</a>
+    🎟️ 当日券
+    <button class="qr-btn" id="qrBtn" aria-label="このページのQRコードを表示">QR</button>
+  </header>
+
+  <main>
+    <section class="card a">
+      <div class="row1"><span class="name">A<span class="tag">スタンダード</span></span><span class="price">¥5,000</span></div>
+      <div class="controls">
+        <button class="btn minus" data-act="minus:A" id="minus-A" aria-label="Aを減らす">−</button>
+        <span class="count" id="count-A">0</span>
+        <button class="btn plus" data-act="plus:A" aria-label="Aを増やす">+</button>
+      </div>
+      <div class="subtotal" id="sub-A">小計 ¥0</div>
+    </section>
+
+    <section class="card s">
+      <div class="row1"><span class="name">S<span class="tag">スペシャル</span></span><span class="price">¥10,000</span></div>
+      <div class="controls">
+        <button class="btn minus" data-act="minus:S" id="minus-S" aria-label="Sを減らす">−</button>
+        <span class="count" id="count-S">0</span>
+        <button class="btn plus" data-act="plus:S" aria-label="Sを増やす">+</button>
+      </div>
+      <div class="subtotal" id="sub-S">小計 ¥0</div>
+    </section>
+
+    <section class="card ss">
+      <div class="row1"><span class="name">SS<span class="tag">プレミアム</span></span><span class="price">¥15,000</span></div>
+      <div class="controls">
+        <button class="btn minus" data-act="minus:SS" id="minus-SS" aria-label="SSを減らす">−</button>
+        <span class="count" id="count-SS">0</span>
+        <button class="btn plus" data-act="plus:SS" aria-label="SSを増やす">+</button>
+      </div>
+      <div class="subtotal" id="sub-SS">小計 ¥0</div>
+    </section>
+  </main>
+
+  <div class="total">
+    <button class="reset" id="reset">リセット</button>
+    <div class="total-r">
+      <div class="total-label">合計 <span id="total-count">0</span>枚</div>
+      <div class="total-amount"><span class="yen">¥</span><span id="total">0</span></div>
+    </div>
+  </div>
+
+  <div class="qr-modal" id="qrModal" hidden>
+    <div class="qr-card">
+      <h2>当日券ページのQRコード</h2>
+      <p>スマホのカメラで読み取って開けます</p>
+      <img src="qr-tickets.png" alt="当日券ページURLのQRコード" width="240" height="240">
+      <div class="qr-url">https://riogroup-tokyo.github.io/drink-pos/tickets.html</div>
+      <button class="qr-close" id="qrClose">閉じる</button>
+    </div>
+  </div>
+
+<script>
+  const PRICES = { A: 5000, S: 10000, SS: 15000 };
+  const TYPES = ["A", "S", "SS"];
+  const state = { A: 0, S: 0, SS: 0 };
+  const KEY = "day-ticket-pos";
+
+  try { Object.assign(state, JSON.parse(localStorage.getItem(KEY)) || {}); } catch (e) {}
+
+  const fmt = n => n.toLocaleString("ja-JP");
+
+  function render(){
+    let total = 0, count = 0;
+    for (const k of TYPES) {
+      const sub = state[k] * PRICES[k];
+      total += sub; count += state[k];
+      document.getElementById("count-" + k).textContent = state[k];
+      document.getElementById("sub-" + k).textContent = "小計 ¥" + fmt(sub);
+      document.getElementById("minus-" + k).disabled = state[k] === 0;
+    }
+    document.getElementById("total").textContent = fmt(total);
+    document.getElementById("total-count").textContent = count;
+    try { localStorage.setItem(KEY, JSON.stringify(state)); } catch (e) {}
+  }
+
+  function change(k, d){
+    state[k] = Math.max(0, state[k] + d);
+    render();
+    if (navigator.vibrate) navigator.vibrate(8);
+  }
+
+  document.querySelectorAll("[data-act]").forEach(btn => {
+    btn.addEventListener("click", () => {
+      const [act, k] = btn.dataset.act.split(":");
+      change(k, act === "plus" ? 1 : -1);
+    });
+  });
+
+  document.getElementById("reset").addEventListener("click", () => {
+    if (confirm("会計をリセットしますか？")) { state.A = 0; state.S = 0; state.SS = 0; render(); }
+  });
+
+  const qrModal = document.getElementById("qrModal");
+  document.getElementById("qrBtn").addEventListener("click", () => { qrModal.hidden = false; });
+  document.getElementById("qrClose").addEventListener("click", () => { qrModal.hidden = true; });
+  qrModal.addEventListener("click", (e) => { if (e.target === qrModal) qrModal.hidden = true; });
+
+  render();
+</script>
+</body>
+</html>
