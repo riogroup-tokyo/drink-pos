@@ -27,16 +27,13 @@
     padding:calc(16px + env(safe-area-inset-top)) 20px 14px;
     text-align:center; font-size:20px; font-weight:800; letter-spacing:.05em;
   }
-  .nav-btn, .qr-btn{
-    position:absolute; top:calc(12px + env(safe-area-inset-top));
+  .qr-btn{
+    position:absolute; right:14px; top:calc(12px + env(safe-area-inset-top));
     border:1.5px solid rgba(15,23,42,.18); background:#fff; color:var(--ink);
     font-size:13px; font-weight:800; letter-spacing:.04em;
     padding:8px 12px; border-radius:12px; cursor:pointer; touch-action:manipulation;
-    text-decoration:none; display:inline-block;
   }
-  .nav-btn{left:14px;}
-  .qr-btn{right:14px;}
-  .nav-btn:active, .qr-btn:active{transform:scale(.93);}
+  .qr-btn:active{transform:scale(.93);}
   main{ flex:1; padding:6px 16px 16px; display:flex; flex-direction:column; gap:14px; }
   .card{
     background:#fff; border-radius:24px; padding:18px 20px 16px;
@@ -105,7 +102,6 @@
 </head>
 <body>
   <header>
-    <a class="nav-btn" href="index.html" aria-label="ドリンク会計へ">🍻 ドリンク</a>
     🎟️ 当日券
     <button class="qr-btn" id="qrBtn" aria-label="このページのQRコードを表示">QR</button>
   </header>
