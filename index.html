@@ -1,0 +1,147 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
+<meta name="theme-color" content="#0f172a">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<title>ドリンク会計</title>
+<style>
+  :root{
+    --soft:#0ea5e9; --soft-minus:#bae6fd; --soft-ink:#0369a1;
+    --alc:#f59e0b;  --alc-minus:#fde68a;  --alc-ink:#b45309;
+    --ink:#0f172a; --muted:#64748b; --bg:#eef2f7;
+  }
+  *{box-sizing:border-box;margin:0;padding:0;-webkit-tap-highlight-color:transparent;}
+  html,body{height:100%;}
+  body{
+    font-family:-apple-system,BlinkMacSystemFont,"Hiragino Kaku Gothic ProN","Hiragino Sans",Meiryo,sans-serif;
+    background:var(--bg); color:var(--ink);
+    display:flex; flex-direction:column; min-height:100dvh;
+    -webkit-user-select:none; user-select:none;
+  }
+  header{
+    padding:calc(16px + env(safe-area-inset-top)) 20px 14px;
+    text-align:center; font-size:20px; font-weight:800; letter-spacing:.05em;
+  }
+  main{ flex:1; padding:6px 16px 16px; display:flex; flex-direction:column; gap:16px; }
+  .card{
+    background:#fff; border-radius:24px; padding:20px 20px 18px;
+    box-shadow:0 8px 24px rgba(15,23,42,.07); border:1px solid rgba(15,23,42,.04);
+  }
+  .row1{display:flex; justify-content:space-between; align-items:baseline; margin-bottom:16px;}
+  .name{font-size:23px; font-weight:800;}
+  .price{font-size:15px; color:var(--muted); font-weight:700;}
+  .controls{display:flex; align-items:center; justify-content:space-between;}
+  .btn{
+    width:80px; height:80px; border:none; border-radius:50%;
+    font-size:42px; font-weight:600; color:#fff; line-height:1;
+    display:flex; align-items:center; justify-content:center;
+    cursor:pointer; touch-action:manipulation;
+    transition:transform .07s ease, filter .07s ease;
+  }
+  .btn:active{transform:scale(.88); filter:brightness(.93);}
+  .btn:disabled{opacity:.4; cursor:default;}
+  .btn:disabled:active{transform:none; filter:none;}
+  .count{font-size:52px; font-weight:800; min-width:64px; text-align:center; font-variant-numeric:tabular-nums;}
+  .subtotal{margin-top:14px; text-align:right; font-size:15px; color:var(--muted); font-weight:700;}
+  .soft .btn.plus{background:var(--soft);}
+  .soft .btn.minus{background:var(--soft-minus); color:var(--soft-ink);}
+  .alc  .btn.plus{background:var(--alc);}
+  .alc  .btn.minus{background:var(--alc-minus); color:var(--alc-ink);}
+  .total{
+    position:sticky; bottom:0; background:var(--ink); color:#fff;
+    padding:16px 20px calc(16px + env(safe-area-inset-bottom));
+    box-shadow:0 -8px 24px rgba(15,23,42,.18);
+    display:flex; align-items:center; gap:14px;
+  }
+  .reset{
+    flex:0 0 auto; border:1.5px solid rgba(255,255,255,.35); background:transparent;
+    color:#fff; font-size:15px; font-weight:700; padding:12px 16px; border-radius:14px;
+    cursor:pointer; touch-action:manipulation;
+  }
+  .reset:active{background:rgba(255,255,255,.12);}
+  .total-r{margin-left:auto; text-align:right; line-height:1.1;}
+  .total-label{font-size:13px; color:#94a3b8; font-weight:700;}
+  .total-amount{font-size:38px; font-weight:800; font-variant-numeric:tabular-nums;}
+  .total-amount .yen{font-size:24px; margin-right:2px;}
+</style>
+</head>
+<body>
+  <header>🍻 ドリンク会計</header>
+
+  <main>
+    <section class="card soft">
+      <div class="row1"><span class="name">ソフトドリンク</span><span class="price">¥300</span></div>
+      <div class="controls">
+        <button class="btn minus" data-act="minus:soft" id="minus-soft" aria-label="ソフトドリンクを減らす">−</button>
+        <span class="count" id="count-soft">0</span>
+        <button class="btn plus" data-act="plus:soft" aria-label="ソフトドリンクを増やす">+</button>
+      </div>
+      <div class="subtotal" id="sub-soft">小計 ¥0</div>
+    </section>
+
+    <section class="card alc">
+      <div class="row1"><span class="name">アルコール</span><span class="price">¥500</span></div>
+      <div class="controls">
+        <button class="btn minus" data-act="minus:alc" id="minus-alc" aria-label="アルコールを減らす">−</button>
+        <span class="count" id="count-alc">0</span>
+        <button class="btn plus" data-act="plus:alc" aria-label="アルコールを増やす">+</button>
+      </div>
+      <div class="subtotal" id="sub-alc">小計 ¥0</div>
+    </section>
+  </main>
+
+  <div class="total">
+    <button class="reset" id="reset">リセット</button>
+    <div class="total-r">
+      <div class="total-label">合計 <span id="total-count">0</span>点</div>
+      <div class="total-amount"><span class="yen">¥</span><span id="total">0</span></div>
+    </div>
+  </div>
+
+<script>
+  const PRICES = { soft: 300, alc: 500 };
+  const state = { soft: 0, alc: 0 };
+  const KEY = "drink-pos";
+
+  try { Object.assign(state, JSON.parse(localStorage.getItem(KEY)) || {}); } catch (e) {}
+
+  const fmt = n => n.toLocaleString("ja-JP");
+
+  function render(){
+    let total = 0, count = 0;
+    for (const k of ["soft", "alc"]) {
+      const sub = state[k] * PRICES[k];
+      total += sub; count += state[k];
+      document.getElementById("count-" + k).textContent = state[k];
+      document.getElementById("sub-" + k).textContent = "小計 ¥" + fmt(sub);
+      document.getElementById("minus-" + k).disabled = state[k] === 0;
+    }
+    document.getElementById("total").textContent = fmt(total);
+    document.getElementById("total-count").textContent = count;
+    try { localStorage.setItem(KEY, JSON.stringify(state)); } catch (e) {}
+  }
+
+  function change(k, d){
+    state[k] = Math.max(0, state[k] + d);
+    render();
+    if (navigator.vibrate) navigator.vibrate(8);
+  }
+
+  document.querySelectorAll("[data-act]").forEach(btn => {
+    btn.addEventListener("click", () => {
+      const [act, k] = btn.dataset.act.split(":");
+      change(k, act === "plus" ? 1 : -1);
+    });
+  });
+
+  document.getElementById("reset").addEventListener("click", () => {
+    if (confirm("会計をリセットしますか？")) { state.soft = 0; state.alc = 0; render(); }
+  });
+
+  render();
+</script>
+</body>
+</html>
