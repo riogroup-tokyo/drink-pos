@@ -121,10 +121,16 @@
     margin-top:14px; width:100%; border:none; background:var(--ink); color:#fff;
     font-size:16px; font-weight:700; padding:14px; border-radius:14px; cursor:pointer;
   }
+
+  /* 同期ステータス */
+  .sync{display:flex; align-items:center; justify-content:center; gap:6px;
+        font-size:12px; font-weight:700; color:#94a3b8; padding:0 0 4px;}
+  .sync .dot{width:8px; height:8px; border-radius:50%; background:#94a3b8; flex:0 0 auto;}
 </style>
 </head>
 <body>
   <header><a class="nav-btn" href="tickets.html" aria-label="当日券へ">🎟️ 当日券</a>🍻 ドリンク会計<button class="qr-btn" id="qrBtn" aria-label="アプリのQRコードを表示">QR</button></header>
+  <div class="sync" id="sync"><span class="dot"></span><span class="txt">…</span></div>
 
   <main>
     <section class="card soft">
@@ -180,20 +186,18 @@
     </div>
   </div>
 
-<script>
+<script type="module">
+  import { startSync } from "./sync.js";
+
   const PRICES = { soft: 300, alc: 500, staff: 0 };
-  const state = { soft: 0, alc: 0, staff: 0 };
-  const KEY = "drink-pos";
-
-  try { Object.assign(state, JSON.parse(localStorage.getItem(KEY)) || {}); } catch (e) {}
-
+  const FIELDS = ["soft", "alc", "staff"];
   const fmt = n => n.toLocaleString("ja-JP");
 
-  function render(){
-    const { soft, alc, staff } = state;
-    const softTotal = soft + staff;              // ソフト合計（スタッフ無料分を含む）
+  function render(s){
+    const soft = s.soft || 0, alc = s.alc || 0, staff = s.staff || 0;
+    const softTotal = soft + staff;                  // ソフト合計（スタッフ無料分を含む）
     const money = soft * PRICES.soft + alc * PRICES.alc; // スタッフは¥0
-    const count = soft + alc + staff;            // 合計点数（スタッフ込）
+    const count = soft + alc + staff;                // 合計点数（スタッフ込）
 
     document.getElementById("count-soft").textContent = soft;
     document.getElementById("count-alc").textContent = alc;
@@ -211,24 +215,33 @@
 
     document.getElementById("total").textContent = fmt(money);
     document.getElementById("total-count").textContent = count;
-    try { localStorage.setItem(KEY, JSON.stringify(state)); } catch (e) {}
   }
 
-  function change(k, d){
-    state[k] = Math.max(0, state[k] + d);
-    render();
-    if (navigator.vibrate) navigator.vibrate(8);
+  const STAT = {
+    local:      ["#94a3b8", "ローカルのみ（このデバイス）"],
+    connecting: ["#f59e0b", "接続中…"],
+    online:     ["#16a34a", "全端末で同期中"],
+    offline:    ["#ef4444", "オフライン（復帰待ち）"],
+  };
+  function setStatus(st){
+    const el = document.getElementById("sync"); if (!el) return;
+    const [c, t] = STAT[st] || STAT.local;
+    el.querySelector(".dot").style.background = c;
+    const tx = el.querySelector(".txt"); tx.textContent = t; tx.style.color = c;
   }
+
+  const sync = startSync({ fields: FIELDS, cacheKey: "drink-pos", onChange: render, onStatus: setStatus });
 
   document.querySelectorAll("[data-act]").forEach(btn => {
     btn.addEventListener("click", () => {
       const [act, k] = btn.dataset.act.split(":");
-      change(k, act === "plus" ? 1 : -1);
+      sync.bump(k, act === "plus" ? 1 : -1);
+      if (navigator.vibrate) navigator.vibrate(8);
     });
   });
 
   document.getElementById("reset").addEventListener("click", () => {
-    if (confirm("会計をリセットしますか？")) { state.soft = 0; state.alc = 0; state.staff = 0; render(); }
+    if (confirm("会計をリセットしますか？（全端末がリセットされます）")) sync.reset();
   });
 
   // QRコード表示
@@ -236,8 +249,6 @@
   document.getElementById("qrBtn").addEventListener("click", () => { qrModal.hidden = false; });
   document.getElementById("qrClose").addEventListener("click", () => { qrModal.hidden = true; });
   qrModal.addEventListener("click", (e) => { if (e.target === qrModal) qrModal.hidden = true; });
-
-  render();
 </script>
 </body>
 </html>
