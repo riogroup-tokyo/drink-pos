@@ -22,9 +22,17 @@
     -webkit-user-select:none; user-select:none;
   }
   header{
+    position:relative;
     padding:calc(16px + env(safe-area-inset-top)) 20px 14px;
     text-align:center; font-size:20px; font-weight:800; letter-spacing:.05em;
   }
+  .qr-btn{
+    position:absolute; right:14px; top:calc(12px + env(safe-area-inset-top));
+    border:1.5px solid rgba(15,23,42,.18); background:#fff; color:var(--ink);
+    font-size:13px; font-weight:800; letter-spacing:.06em;
+    padding:8px 13px; border-radius:12px; cursor:pointer; touch-action:manipulation;
+  }
+  .qr-btn:active{transform:scale(.93);}
   main{ flex:1; padding:6px 16px 16px; display:flex; flex-direction:column; gap:16px; }
   .card{
     background:#fff; border-radius:24px; padding:20px 20px 18px;
@@ -66,10 +74,49 @@
   .total-label{font-size:13px; color:#94a3b8; font-weight:700;}
   .total-amount{font-size:38px; font-weight:800; font-variant-numeric:tabular-nums;}
   .total-amount .yen{font-size:24px; margin-right:2px;}
+
+  /* スタッフ（小さめ・無料） */
+  .staff{padding:14px 18px;}
+  .staff-row{display:flex; align-items:center; justify-content:space-between; gap:12px;}
+  .staff-name{font-size:17px; font-weight:800; display:flex; align-items:center; gap:8px;}
+  .free-badge{font-size:11px; color:#15803d; background:#dcfce7; padding:3px 9px; border-radius:999px; font-weight:800;}
+  .staff-sub{font-size:12px; color:var(--muted); font-weight:600; margin-top:3px;}
+  .staff-ctrl{display:flex; align-items:center; gap:10px;}
+  .btn-sm{
+    width:52px; height:52px; border:none; border-radius:50%;
+    font-size:28px; font-weight:600; color:#fff; line-height:1;
+    display:flex; align-items:center; justify-content:center;
+    cursor:pointer; touch-action:manipulation; transition:transform .07s ease;
+  }
+  .btn-sm:active{transform:scale(.86);}
+  .btn-sm:disabled{opacity:.4; cursor:default;}
+  .staff .btn-sm.plus{background:#16a34a;}
+  .staff .btn-sm.minus{background:#bbf7d0; color:#15803d;}
+  .count-sm{font-size:30px; font-weight:800; min-width:34px; text-align:center; font-variant-numeric:tabular-nums;}
+
+  /* QRモーダル */
+  .qr-modal{
+    position:fixed; inset:0; background:rgba(15,23,42,.6); z-index:50;
+    display:flex; align-items:center; justify-content:center; padding:24px;
+    -webkit-backdrop-filter:blur(3px); backdrop-filter:blur(3px);
+  }
+  .qr-modal[hidden]{display:none;}
+  .qr-card{
+    background:#fff; border-radius:24px; padding:24px; text-align:center;
+    max-width:320px; width:100%; box-shadow:0 20px 50px rgba(0,0,0,.3);
+  }
+  .qr-card h2{font-size:17px; margin-bottom:4px;}
+  .qr-card p{font-size:13px; color:var(--muted); margin-bottom:16px;}
+  .qr-card img{width:240px; height:240px; image-rendering:pixelated; border-radius:8px;}
+  .qr-url{font-size:12px; color:#475569; word-break:break-all; margin:14px 0 2px; font-weight:600;}
+  .qr-close{
+    margin-top:14px; width:100%; border:none; background:var(--ink); color:#fff;
+    font-size:16px; font-weight:700; padding:14px; border-radius:14px; cursor:pointer;
+  }
 </style>
 </head>
 <body>
-  <header>🍻 ドリンク会計</header>
+  <header>🍻 ドリンク会計<button class="qr-btn" id="qrBtn" aria-label="アプリのQRコードを表示">QR</button></header>
 
   <main>
     <section class="card soft">
@@ -91,6 +138,20 @@
       </div>
       <div class="subtotal" id="sub-alc">小計 ¥0</div>
     </section>
+
+    <section class="card staff">
+      <div class="staff-row">
+        <div>
+          <div class="staff-name">スタッフ <span class="free-badge">無料</span></div>
+          <div class="staff-sub">ソフトの合計数に計上されます</div>
+        </div>
+        <div class="staff-ctrl">
+          <button class="btn-sm minus" data-act="minus:staff" id="minus-staff" aria-label="スタッフを減らす">−</button>
+          <span class="count-sm" id="count-staff">0</span>
+          <button class="btn-sm plus" data-act="plus:staff" aria-label="スタッフを増やす">+</button>
+        </div>
+      </div>
+    </section>
   </main>
 
   <div class="total">
@@ -101,9 +162,19 @@
     </div>
   </div>
 
+  <div class="qr-modal" id="qrModal" hidden>
+    <div class="qr-card">
+      <h2>このアプリのQRコード</h2>
+      <p>スマホのカメラで読み取って開けます</p>
+      <img src="qr.png" alt="アプリURLのQRコード" width="240" height="240">
+      <div class="qr-url">https://riogroup-tokyo.github.io/drink-pos/</div>
+      <button class="qr-close" id="qrClose">閉じる</button>
+    </div>
+  </div>
+
 <script>
-  const PRICES = { soft: 300, alc: 500 };
-  const state = { soft: 0, alc: 0 };
+  const PRICES = { soft: 300, alc: 500, staff: 0 };
+  const state = { soft: 0, alc: 0, staff: 0 };
   const KEY = "drink-pos";
 
   try { Object.assign(state, JSON.parse(localStorage.getItem(KEY)) || {}); } catch (e) {}
@@ -111,15 +182,26 @@
   const fmt = n => n.toLocaleString("ja-JP");
 
   function render(){
-    let total = 0, count = 0;
-    for (const k of ["soft", "alc"]) {
-      const sub = state[k] * PRICES[k];
-      total += sub; count += state[k];
-      document.getElementById("count-" + k).textContent = state[k];
-      document.getElementById("sub-" + k).textContent = "小計 ¥" + fmt(sub);
-      document.getElementById("minus-" + k).disabled = state[k] === 0;
-    }
-    document.getElementById("total").textContent = fmt(total);
+    const { soft, alc, staff } = state;
+    const softTotal = soft + staff;              // ソフト合計（スタッフ無料分を含む）
+    const money = soft * PRICES.soft + alc * PRICES.alc; // スタッフは¥0
+    const count = soft + alc + staff;            // 合計点数（スタッフ込）
+
+    document.getElementById("count-soft").textContent = soft;
+    document.getElementById("count-alc").textContent = alc;
+    document.getElementById("count-staff").textContent = staff;
+
+    document.getElementById("sub-soft").textContent =
+      staff > 0
+        ? "小計 ¥" + fmt(soft * PRICES.soft) + " ・ ソフト計 " + softTotal + "杯"
+        : "小計 ¥" + fmt(soft * PRICES.soft);
+    document.getElementById("sub-alc").textContent = "小計 ¥" + fmt(alc * PRICES.alc);
+
+    document.getElementById("minus-soft").disabled = soft === 0;
+    document.getElementById("minus-alc").disabled = alc === 0;
+    document.getElementById("minus-staff").disabled = staff === 0;
+
+    document.getElementById("total").textContent = fmt(money);
     document.getElementById("total-count").textContent = count;
     try { localStorage.setItem(KEY, JSON.stringify(state)); } catch (e) {}
   }
@@ -138,8 +220,14 @@
   });
 
   document.getElementById("reset").addEventListener("click", () => {
-    if (confirm("会計をリセットしますか？")) { state.soft = 0; state.alc = 0; render(); }
+    if (confirm("会計をリセットしますか？")) { state.soft = 0; state.alc = 0; state.staff = 0; render(); }
   });
+
+  // QRコード表示
+  const qrModal = document.getElementById("qrModal");
+  document.getElementById("qrBtn").addEventListener("click", () => { qrModal.hidden = false; });
+  document.getElementById("qrClose").addEventListener("click", () => { qrModal.hidden = true; });
+  qrModal.addEventListener("click", (e) => { if (e.target === qrModal) qrModal.hidden = true; });
 
   render();
 </script>
